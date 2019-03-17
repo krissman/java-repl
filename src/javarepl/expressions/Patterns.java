@@ -23,7 +23,7 @@ public class Patterns {
     public static final Regex typeExtensibilityModifiersPattern = oneOf("final +", "abstract +");
     public static final Regex typePrefixPattern = oneOf(regexPermutations(typeExtensibilityModifiersPattern, staticModifierPattern, visibilityModifiersPattern), " *");
     public static final Regex typeKindPattern = oneOf("class +", "interface +", "enum +");
-    public static final Regex typePattern = join(oneOf(packagePattern, ""), ".*", typePrefixPattern, typeKindPattern, identifierPattern, ".*\\{.*");
+    public static final Regex typePattern = join(oneOf(packagePattern, ""), ".*?", typePrefixPattern, typeKindPattern, identifierPattern, ".*\\{.*");
 
     public static final Regex methodExtensibilityModifiersPattern = oneOf("final +");
     public static final Regex methodPrefixPattern = oneOf(regexPermutations(methodExtensibilityModifiersPattern, staticModifierPattern, visibilityModifiersPattern), " *");
@@ -46,7 +46,7 @@ public class Patterns {
     }
 
     public static boolean isValidAssignment(String string) {
-        return assignmentPattern.matches(string.trim());
+        return !string.contains("==") && assignmentPattern.matches(string.trim());
     }
 
     public static boolean isValidAssignmentWithType(String string) {

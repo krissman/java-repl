@@ -31,7 +31,9 @@ public class PatternsTest {
         assertTrue(isValidAssignment("val =42"));
         assertTrue(isValidAssignment("val= 42"));
         assertTrue(isValidAssignment("  val  =   42  42  "));
+
         assertFalse(isValidAssignment("val wrong=   42  42  "));
+        assertFalse(isValidAssignment("a == b"));
 
         MatchResult result = assignmentPattern.match("val = 42");
         assertThat(result.group(1), is("val"));
@@ -80,6 +82,9 @@ public class PatternsTest {
 
         MatchResult result = typePattern.match("package some.pack; public static final class SomeClass extends BaseClass{");
         assertThat(result.group(1), is("some.pack"));
+        assertThat(result.group(2), is("SomeClass"));
+
+        result = typePattern.match("public class SomeClass {\n// comment with class word {\n}");
         assertThat(result.group(2), is("SomeClass"));
     }
 

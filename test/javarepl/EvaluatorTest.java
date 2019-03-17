@@ -9,6 +9,8 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import static com.googlecode.totallylazy.Option.none;
+import static javarepl.EvaluationClassLoader.evaluationClassLoader;
+import static javarepl.EvaluationContext.evaluationContext;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
@@ -41,6 +43,7 @@ public class EvaluatorTest {
         assertThat(evaluating("class NewClass {public int field=20;}", "new NewClass().field"), hasResult(20));
         assertThat(evaluating("int max(int a, int b) { return a > b ? a : b; }", "max(20, 30)"), hasResult(30));
         assertThat(evaluating("String res = null", "res"), hasResult(null));
+        assertThat(evaluating("String a = \"My String\";", "String b = \"My String\";", "a == b"), hasResult(true));
     }
 
     @Test
@@ -63,16 +66,21 @@ public class EvaluatorTest {
 
     @Test
     public void shouldReturnTypeOfExpression() {
-        assertThat(new Evaluator().typeOfExpression("\"hello\""), is(Option.<java.lang.reflect.Type>some(String.class)));
-        assertThat(new Evaluator().typeOfExpression("12"), is(Option.<java.lang.reflect.Type>some(Integer.class)));
-        assertThat(new Evaluator().typeOfExpression("System.out.println(\"hello\")"), is(none(java.lang.reflect.Type.class)));
+        assertThat(evaluator().typeOfExpression("\"hello\""), is(Option.<java.lang.reflect.Type>some(String.class)));
+        assertThat(evaluator().typeOfExpression("12"), is(Option.<java.lang.reflect.Type>some(Integer.class)));
+        assertThat(evaluator().typeOfExpression("System.out.println(\"hello\")"), is(none(java.lang.reflect.Type.class)));
     }
 
     @Test
     public void shouldReturnClassFromExpression() {
-        assertThat(new Evaluator().classFrom("String"), is(Option.<Class>some(String.class)));
-        assertThat(new Evaluator().classFrom("java.util.Map.Entry"), is(Option.<Class>some(java.util.Map.Entry.class)));
-        assertThat(new Evaluator().classFrom("invalid"), is(none(Class.class)));
+        assertThat(evaluator().classFrom("String"), is(Option.<Class<?>>some(String.class)));
+        assertThat(evaluator().classFrom("java.util.Map.Entry"), is(Option.<Class<?>>some(java.util.Map.Entry.class)));
+        assertThat(evaluator().classFrom("invalid"), is(none(Class.class)));
+    }
+
+    private static Evaluator evaluator() {
+        EvaluationContext context = evaluationContext();
+        return new Evaluator(context, evaluationClassLoader(context));
     }
 
     private static Matcher<Either<? extends Throwable, Evaluation>> hasNoResult() {
@@ -91,6 +99,7 @@ public class EvaluatorTest {
         };
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> Matcher<Either<? extends Throwable, Evaluation>> hasResult(T value) {
         return new FeatureMatcher<Either<? extends Throwable, Evaluation>, T>(is(value), "result value", "result value") {
             protected T featureValueOf(Either<? extends Throwable, Evaluation> evaluation) {
@@ -113,7 +122,7 @@ public class EvaluatorTest {
     }
 
     private static Either<? extends Throwable, Evaluation> evaluating(String... expressions) {
-        Evaluator evaluator = new Evaluator();
+        Evaluator evaluator = evaluator();
 
         Either<? extends Throwable, Evaluation> result = null;
         for (String expression : expressions) {

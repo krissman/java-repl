@@ -1,38 +1,31 @@
 package javarepl;
 
-import com.googlecode.totallylazy.Function1;
-import com.googlecode.totallylazy.Mapper;
 import com.googlecode.totallylazy.Option;
 import com.googlecode.totallylazy.Sequence;
+import com.googlecode.totallylazy.functions.Function1;
 import com.googlecode.totallylazy.predicates.LogicalPredicate;
 import javarepl.console.*;
 import javarepl.console.rest.RestConsole;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FilePermission;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.lang.management.ManagementPermission;
 import java.lang.reflect.ReflectPermission;
 import java.net.SocketPermission;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.security.CodeSource;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
-import java.util.Collections;
-import java.util.List;
 import java.util.PropertyPermission;
 
-import static com.googlecode.totallylazy.Callables.compose;
-import static com.googlecode.totallylazy.Files.fileOption;
 import static com.googlecode.totallylazy.Files.temporaryDirectory;
 import static com.googlecode.totallylazy.Option.none;
 import static com.googlecode.totallylazy.Option.some;
 import static com.googlecode.totallylazy.Sequences.sequence;
 import static com.googlecode.totallylazy.Strings.replaceAll;
 import static com.googlecode.totallylazy.Strings.startsWith;
+import static com.googlecode.totallylazy.functions.Callables.compose;
 import static com.googlecode.totallylazy.numbers.Numbers.intValue;
 import static com.googlecode.totallylazy.numbers.Numbers.valueOf;
 import static java.lang.String.format;
@@ -42,6 +35,7 @@ import static javarepl.Utils.randomServerPort;
 import static javarepl.console.ConsoleConfig.consoleConfig;
 import static javarepl.console.ConsoleLog.Type.ERROR;
 import static javarepl.console.ConsoleLog.Type.SUCCESS;
+import static javax.tools.ToolProvider.getSystemJavaCompiler;
 
 public class Repl {
     public static void main(String... args) throws Exception {
@@ -57,9 +51,7 @@ public class Repl {
                     getProperty("java.version")));
         }
 
-        String[] expressions = sequence(initialExpressions(args))
-                .union(sequence(initialExpressionsFromFile()))
-                .toArray(new String[0]);
+        String[] expressions = sequence(initialExpressions(args)).toArray(new String[0]);
 
         ConsoleConfig consoleConfig = consoleConfig()
                 .historyFile(historyFile(!sandboxed))
@@ -81,39 +73,21 @@ public class Repl {
         } while (true);
     }
 
-    private static List<String> initialExpressionsFromFile() {
-        return fileOption(new File("."), "javarepl.init")
-            .map(readFile())
-            .getOrElse(Collections.EMPTY_LIST);
-    }
-
-    private static Function1<File, List<String>> readFile() {
-        return new Function1<File, List<String>>() {
-            @Override
-            public List<String> call(File f) throws Exception {
-                List<String> l = Files.readAllLines(f.toPath(), StandardCharsets.UTF_8);
-                System.out.println(l);
-                return l;
-            }
-        };
-    }
 
     private static boolean ignoreConsole(String[] args) {
         return sequence(args).contains("--ignoreConsole");
     }
 
-    private static Mapper<Sequence<String>, String> ignoreConsoleInput() {
-        return new Mapper<Sequence<String>, String>() {
-            public String call(Sequence<String> strings) throws Exception {
-                while (true) {
-                    Thread.sleep(100);
-                }
+    private static Function1<Sequence<String>, String> ignoreConsoleInput() {
+        return strings -> {
+            while (true) {
+                Thread.sleep(100);
             }
         };
     }
 
-    private static Mapper<Sequence<String>, String> readFromConsole() {
-        return new Mapper<Sequence<String>, String>() {
+    private static Function1<Sequence<String>, String> readFromConsole() {
+        return new Function1<Sequence<String>, String>() {
             private final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 
             public String call(Sequence<String> lines) throws Exception {
@@ -165,7 +139,7 @@ public class Repl {
         return sequence(args).find(startsWith("--inactivityTimeout=")).map(compose(replaceAll("--inactivityTimeout=", ""), compose(valueOf, intValue)));
     }
 
-    private static void sandboxApplication() {
+    private static void sandboxApplication() throws UnsupportedEncodingException {
         Policy.setPolicy(new Policy() {
             private final PermissionCollection permissions = new Permissions();
 
@@ -183,7 +157,23 @@ public class Repl {
                 permissions.add(new ReflectPermission("suppressAccessChecks"));
                 permissions.add(new PropertyPermission("*", "read"));
                 permissions.add(new FilePermission(temporaryDirectory("JavaREPL").getAbsolutePath() + "/-", "read, write, delete"));
-                permissions.add(new FilePermission("<<ALL FILES>>", "read"));
+
+                permissions.add(new FilePermission(sequence(System.getProperty("java.home").split(File.separator)).
+                    reverse().
+                    drop(1).
+                    reverse().
+                    toString(File.separator) + "/-", "read"));
+                permissions.add(new FilePermission("./-", "read"));
+
+                Sequence<String> extensions = sequence(((URLClassLoader) getSystemJavaCompiler().getClass().getClassLoader()).getURLs()).map(URL::getPath).
+                    join(paths("java.ext.dirs")).
+                    join(paths("java.library.path")).
+                    append(System.getProperty("user.home"));
+
+                for (String extension : extensions) {
+                    permissions.add(new FilePermission(extension, "read"));
+                    permissions.add(new FilePermission(extension + "/-", "read"));
+                }
             }
 
             @Override
@@ -193,5 +183,9 @@ public class Repl {
         });
 
         System.setSecurityManager(new SecurityManager());
+    }
+
+    private static Sequence<String> paths(String propertyKey) {
+        return sequence(System.getProperty(propertyKey).split(File.pathSeparator));
     }
 }

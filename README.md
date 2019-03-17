@@ -1,5 +1,15 @@
 # Java REPL
 
+### NOT MAINTAINED: Since Java is now released with [REPL](https://docs.oracle.com/javase/10/jshell/introduction-jshell.htm) this project will no longer be maintained.
+
+[![Travis](https://img.shields.io/travis/albertlatacz/java-repl.svg)](https://travis-ci.org/albertlatacz/java-repl)
+[![GitHub](https://img.shields.io/github/release/albertlatacz/java-repl.svg)](https://github.com/albertlatacz/java-repl/releases/latest)
+[![Docker Pulls](https://img.shields.io/docker/pulls/albertlatacz/java-repl.svg)](https://hub.docker.com/r/albertlatacz/java-repl/)
+
+
+ 
+
+
 Java REPL is a simple Read-Eval-Print-Loop for Java language.
 
 * Support for most of Java language constructs
@@ -15,55 +25,55 @@ Java REPL is a simple Read-Eval-Print-Loop for Java language.
 * Basic code completion for results, classes and methods
 * Coloured output for console and web terminal
 
-Web version is available at [www.javarepl.com](http://www.javarepl.com/).
 
 
 ## Build
-
-[![Build Status](https://travis-ci.org/albertlatacz/java-repl.png?branch=master)](https://travis-ci.org/albertlatacz/java-repl)
-
-Building Java REPL requires the [ant build tool](http://ant.apache.org/).
+Building Java REPL requires the [gradle](https://gradle.org/).
 
 After cloning the git repository, navigate over to it and run:
 
 ```
-$ ant
+$ gradle shadowJar
 ```
 
-After this completes, the jar completed with bundled dependencies will be located at **build/artifacts/javarepl-dev.build.jar**
+After this completes, the jar completed with bundled dependencies will be located at **build/libs/javarepl-dev.jar**
 
-## Downloads
+Type the following to run
 
-[Latest version](http://albertlatacz.published.s3.amazonaws.com/javarepl/javarepl.jar)
+```
+$ java -jar build/libs/javarepl-dev.jar
+```
 
-[Latest IntelliJ IDEA plugin](http://albertlatacz.published.s3.amazonaws.com/javarepl/javarepl-intellij.zip)
+## Releases
 
-[Previous releases](http://albertlatacz.published.s3.amazonaws.com/index.html)
+Releases are automatically released to [![Maven Central](https://img.shields.io/maven-central/v/com.javarepl/javarepl.svg)](http://repo1.maven.org/maven2). Configure repository and then add Java REPL as dependency:
 
+```xml
+<dependencies>
+    <dependency>
+        <groupId>com.javarepl</groupId>
+        <artifactId>javarepl</artifactId>
+        <version>SOME_VERSION</version>
+    </dependency>
+</dependencies>
+```
 
 ## Usage
-To run Java REPL you need to install **Java Development Kit (JDK) 6 or newer**. Download it from [here](http://www.oracle.com/technetwork/java/javase/downloads/index.html) and follow install instructions. Once JDK is installed and configured you can run:   
+To run Java REPL you need to install **Java Development Kit (JDK)**. Download it from [here](http://www.oracle.com/technetwork/java/javase/downloads/index.html) and follow install instructions. Once JDK is installed and configured, download latest Java REPL release from [GitHub](https://github.com/albertlatacz/java-repl/releases/latest) or [Bintray](https://bintray.com/albertlatacz/maven/java-repl/_latestVersion) then run:
 
 
 ```
-$ java -jar javarepl.jar
+$ java -jar javarepl-SOME_VERSION.jar
 ```
 
 If this doesn't work try to run pointing directly to *java* executable within JDK, like so
 
 
 ```
-$ <PATH_TO_JDK>/bin/java -jar javarepl.jar
+$ <PATH_TO_JDK>/bin/java -jar javarepl-SOME_VERSION.jar
 ```
-
-
-## Donations
-If you like JavaREPL you can tip it via [Gittip](https://www.gittip.com/albertlatacz/)
-
-Donating small amount will help to move the service onto more powerful EC2 machine, which provides faster execution
-and allows more users.
 
 
 ## License
 
-Distributed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+Distributed under the [Apache 2.0](http://www.apache.org/licenses/LICENSE-2.0)

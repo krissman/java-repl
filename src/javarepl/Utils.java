@@ -1,7 +1,9 @@
 package javarepl;
 
-import com.googlecode.totallylazy.*;
-import com.googlecode.totallylazy.numbers.Numbers;
+import com.googlecode.totallylazy.Pair;
+import com.googlecode.totallylazy.Sequence;
+import com.googlecode.totallylazy.Sequences;
+import com.googlecode.totallylazy.functions.Function1;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -11,21 +13,21 @@ import java.lang.reflect.Type;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.URL;
-import java.util.jar.JarEntry;
+import java.util.function.Consumer;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
+import java.util.zip.ZipEntry;
 
-import static com.googlecode.totallylazy.Callables.size;
 import static com.googlecode.totallylazy.Files.*;
-import static com.googlecode.totallylazy.Predicates.is;
-import static com.googlecode.totallylazy.Predicates.where;
 import static com.googlecode.totallylazy.Randoms.takeFromValues;
 import static com.googlecode.totallylazy.Sequences.*;
 import static com.googlecode.totallylazy.Strings.replace;
-import static com.googlecode.totallylazy.URLs.url;
+import static com.googlecode.totallylazy.io.URLs.url;
+import static com.googlecode.totallylazy.predicates.Predicates.is;
+import static com.googlecode.totallylazy.predicates.Predicates.where;
 import static java.lang.String.format;
-import static java.lang.reflect.Modifier.isPrivate;
+import static java.lang.reflect.Modifier.isPublic;
 import static java.net.URLDecoder.decode;
 
 public class Utils {
@@ -38,9 +40,9 @@ public class Utils {
     }
 
     public static Type extractType(Type type) {
-        if (type instanceof Class) {
-            Class clazz = (Class) type;
-            if (clazz.isAnonymousClass() || clazz.isSynthetic()) {
+        if (type instanceof Class<?>) {
+            Class<?> clazz = (Class<?>) type;
+            if (clazz.isAnonymousClass() || clazz.isSynthetic() || clazz.isMemberClass()) {
                 if (clazz.getGenericSuperclass().equals(Object.class)) {
                     return extractType(sequence(clazz.getGenericInterfaces())
                             .headOption()
@@ -50,7 +52,7 @@ public class Utils {
                 }
             }
 
-            if (isPrivate(clazz.getModifiers()))
+            if (!isPublic(clazz.getModifiers()))
                 return extractType(clazz.getGenericSuperclass());
 
             return clazz;
@@ -64,14 +66,6 @@ public class Utils {
             return unwrapException(((InvocationTargetException) e).getTargetException());
 
         return e;
-    }
-
-    public static Mapper<String, URL> resolveURL() {
-        return new Mapper<String, URL>() {
-            public URL call(String path) throws Exception {
-                return resolveURL(path);
-            }
-        };
     }
 
     public static URL resolveURL(String path) {
@@ -103,7 +97,7 @@ public class Utils {
     }
 
     public static <T> Sequence<Sequence<T>> permutations(Sequence<T> items) {
-        return powerSetPermutations(items).filter(where(size(), is(items.size())));
+        return powerSetPermutations(items).filter(where(Sequence::size, is(items.size())));
     }
 
     public static <T> Sequence<Sequence<T>> powerSetPermutations(Sequence<T> items) {
@@ -116,20 +110,12 @@ public class Utils {
 
         return cartesianProductPower(items, times - 1)
                 .cartesianProduct(items)
-                .map(new Mapper<Pair<Sequence<T>, T>, Sequence<T>>() {
-                    public Sequence<T> call(Pair<Sequence<T>, T> pair) {
-                        return pair.first().append(pair.second()).unique();
-                    }
-                })
+                .map(pair -> pair.first().append(pair.second()).unique())
                 .unique();
     }
 
-    public static Mapper<Class<?>, String> canonicalName() {
-        return new Mapper<Class<?>, String>() {
-            public String call(Class<?> aClass) throws Exception {
-                return aClass.getCanonicalName();
-            }
-        };
+    public static Function1<Class<?>, String> canonicalName() {
+        return Class::getCanonicalName;
     }
 
     public static String listValues(String name, Sequence<?> list) {
@@ -162,20 +148,8 @@ public class Utils {
         }
     }
 
-    public static Mapper<JarEntry, String> jarEntryName() {
-        return new Mapper<JarEntry, String>() {
-            public String call(JarEntry jarEntry) throws Exception {
-                return jarEntry.getName();
-            }
-        };
-    }
-
     public static Function1<URL, String> urlAsFilePath() {
-        return new Function1<URL, String>() {
-            public String call(URL url) throws Exception {
-                return new File(url.getFile()).getPath();
-            }
-        };
+        return url -> new File(url.getFile()).getPath();
     }
 
     public static Sequence<String> entries(File file) {
@@ -185,11 +159,17 @@ public class Utils {
         } else {
             try {
                 return memorise(new JarFile(new File(file.toURI())).entries())
-                        .map(jarEntryName());
+                        .map(ZipEntry::getName);
             } catch (Exception e) {
                 System.err.println("Couldn't load entries from jar " + file.toURI() + ". " + e.getLocalizedMessage());
                 return empty();
             }
         }
+    }
+
+    public static Consumer<Throwable> throwException() {
+        return throwable -> {
+            throw new RuntimeException(throwable);
+        };
     }
 }

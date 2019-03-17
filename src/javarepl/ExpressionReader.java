@@ -1,6 +1,10 @@
 package javarepl;
 
-import com.googlecode.totallylazy.*;
+import com.googlecode.totallylazy.Maps;
+import com.googlecode.totallylazy.Option;
+import com.googlecode.totallylazy.Sequence;
+import com.googlecode.totallylazy.Sequences;
+import com.googlecode.totallylazy.functions.Function1;
 
 import java.util.LinkedList;
 import java.util.Map;
@@ -15,10 +19,11 @@ public class ExpressionReader {
     final static Sequence<Character> openBrackets = sequence('[', '{', '(');
     final static Sequence<Character> closedBrackets = sequence(']', '}', ')');
     final static Map<Character, Character> matchingBrackets = Maps.map(closedBrackets.zip(openBrackets));
+    final static Sequence<Character> quotes = sequence('\'', '"');
 
-    private final Mapper<Sequence<String>, String> lineReader;
+    private final Function1<Sequence<String>, String> lineReader;
 
-    public ExpressionReader(Mapper<Sequence<String>, String> lineReader) {
+    public ExpressionReader(Function1<Sequence<String>, String> lineReader) {
         this.lineReader = lineReader;
     }
 
@@ -43,8 +48,25 @@ public class ExpressionReader {
         if (hasTwoEmptyLines(strings))
             return true;
 
+        boolean isEscaped = false; // whether the current character is preceded by a backslash
+        Character quote = null; // the quote character currently used, or null if not quoted
+
         LinkedList<Character> brackets = new LinkedList<Character>();
         for (Character character : characters) {
+            if (isQuote(character) && !isEscaped) {
+                if (quote == null) { // opening quote
+                    quote = character;
+                } else if (quote.equals(character)) { // closing quote
+                    quote = null;
+                }
+            }
+
+            isEscaped = !isEscaped && character != null && character.equals('\\');
+
+            if (quote != null) { // if we're in quoted text, ignore the brackets
+                continue;
+            }
+
             if (isOpeningBracket(character)) {
                 brackets.push(character);
             }
@@ -77,6 +99,10 @@ public class ExpressionReader {
         return openBrackets.contains(character);
     }
 
+    private static boolean isQuote(Character character) {
+        return quotes.contains(character);
+    }
+
     private static boolean hasNullLine(Sequence<String> strings) {
         return strings.contains(null);
     }
@@ -85,8 +111,8 @@ public class ExpressionReader {
         return lines.windowed(2).contains(sequence("", ""));
     }
 
-    public static Mapper<Sequence<String>, String> lines(final String... strings) {
-        return new Mapper<Sequence<String>, String>() {
+    public static Function1<Sequence<String>, String> lines(final String... strings) {
+        return new Function1<Sequence<String>, String>() {
             Sequence<String> toRead = sequence(strings);
 
             public String call(Sequence<String> lines) throws Exception {

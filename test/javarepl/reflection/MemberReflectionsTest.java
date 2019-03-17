@@ -34,11 +34,11 @@ public class MemberReflectionsTest {
         assertThat(membersMatching(isConstructor()), hasItem(ModifiersTestClass.class.getName()));
     }
 
-    private Sequence<String> membersMatching(LogicalPredicate<? super MemberReflection> predicate) {
+    private Sequence<String> membersMatching(LogicalPredicate<? super MemberReflection<?>> predicate) {
         return reflectionOf(new ModifiersTestClass()).declaredMembers()
                 .join(reflectionOf(ModifiersTestClass.InterfaceModifiers.class).declaredMembers())
                 .filter(predicate)
-                .map(memberName());
+                .map(MemberReflection::name);
     }
 
     @SuppressWarnings("unused")

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+docker build -t ${PROJECT_REPOSITORY}:${PROJECT_VERSION} -t ${PROJECT_REPOSITORY} --build-arg JAVA_REPL_VERSION=${PROJECT_VERSION} .
+docker login -u=${DOCKER_HUB_USERNAME} -p=${DOCKER_HUB_PASSWORD};
+docker push ${PROJECT_REPOSITORY}

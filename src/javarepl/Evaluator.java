@@ -1,8 +1,11 @@
 package javarepl;
 
 import com.googlecode.totallylazy.*;
+import com.googlecode.totallylazy.Option;
 import com.googlecode.totallylazy.annotations.multimethod;
+import com.googlecode.totallylazy.functions.Reducer;
 import javarepl.expressions.*;
+import javarepl.expressions.Type;
 import javarepl.expressions.Value;
 
 import javax.tools.DiagnosticCollector;
@@ -20,16 +23,15 @@ import static com.googlecode.totallylazy.Either.left;
 import static com.googlecode.totallylazy.Either.right;
 import static com.googlecode.totallylazy.Files.*;
 import static com.googlecode.totallylazy.Option.*;
-import static com.googlecode.totallylazy.Predicates.equalTo;
-import static com.googlecode.totallylazy.Predicates.where;
 import static com.googlecode.totallylazy.Sequences.empty;
 import static com.googlecode.totallylazy.Sequences.sequence;
 import static com.googlecode.totallylazy.predicates.Not.not;
+import static com.googlecode.totallylazy.predicates.Predicates.equalTo;
+import static com.googlecode.totallylazy.predicates.Predicates.where;
 import static java.io.File.pathSeparator;
 import static javarepl.Evaluation.evaluation;
 import static javarepl.EvaluationClassLoader.evaluationClassLoader;
 import static javarepl.EvaluationContext.evaluationContext;
-import static javarepl.Result.functions.value;
 import static javarepl.Result.noResult;
 import static javarepl.Utils.randomIdentifier;
 import static javarepl.Utils.urlAsFilePath;
@@ -41,32 +43,25 @@ import static javarepl.rendering.ExpressionTokenRenderer.EXPRESSION_TOKEN;
 import static javax.tools.ToolProvider.getSystemJavaCompiler;
 
 public class Evaluator {
-
     private EvaluationClassLoader classLoader;
     private EvaluationContext context;
 
-    public Evaluator() {
-        initializeEvaluator(evaluationContext());
-    }
-
-    private Evaluator(EvaluationContext context) {
-        initializeEvaluator(context);
+    public Evaluator(EvaluationContext context, EvaluationClassLoader classLoader) {
+        initializeEvaluator(context, classLoader);
     }
 
     public Either<Throwable, Evaluation> evaluate(final String expr) {
         return parseExpression(expr).flatMap(
-                new Mapper<Expression, Either<Throwable, Evaluation>>() {
-                    public Either<Throwable, Evaluation> call(Expression expression) throws Exception {
-                        Either<Throwable, Evaluation> resultForValue = evaluate(expression);
-                        if (resultForValue.isLeft() && resultForValue.left() instanceof ExpressionCompilationException && expression instanceof Value) {
-                            Either<Throwable, Evaluation> resultForStatement = evaluate(new Statement(expr));
-                            return resultForStatement.isLeft() && resultForStatement.left() instanceof ExpressionCompilationException
-                                    ? Left.<Throwable, Evaluation>left(new ExpressionCompilationException(sequence(resultForStatement.left().getMessage(), resultForValue.left().getMessage()).unique().toString("\n\n")))
-                                    : resultForStatement;
-                        }
-
-                        return resultForValue;
+                expression -> {
+                    Either<Throwable, Evaluation> resultForValue = evaluate(expression);
+                    if (resultForValue.isLeft() && resultForValue.left() instanceof ExpressionCompilationException && expression instanceof Value) {
+                        Either<Throwable, Evaluation> resultForStatement = evaluate(new Statement(expr));
+                        return resultForStatement.isLeft() && resultForStatement.left() instanceof ExpressionCompilationException
+                                ? left(new ExpressionCompilationException(sequence(resultForStatement.left().getMessage(), resultForValue.left().getMessage()).unique().toString("\n\n")))
+                                : resultForStatement;
                     }
+
+                    return resultForValue;
                 });
     }
 
@@ -147,16 +142,17 @@ public class Evaluator {
 
     public void reset() {
         clearOutputDirectory();
-        initializeEvaluator(evaluationContext());
+        EvaluationContext evaluationContext = evaluationContext();
+        initializeEvaluator(evaluationContext, evaluationClassLoader(evaluationContext));
     }
 
-    private void initializeEvaluator(EvaluationContext evaluationContext) {
+    private void initializeEvaluator(EvaluationContext evaluationContext, EvaluationClassLoader evaluationClassLoader) {
         context = evaluationContext;
-        classLoader = evaluationClassLoader(context.outputDirectory());
+        classLoader = evaluationClassLoader;
     }
 
     public final Either<Throwable, Evaluation> tryEvaluate(String expression) {
-        Evaluator localEvaluator = new Evaluator(context);
+        Evaluator localEvaluator = new Evaluator(context, evaluationClassLoader(context));
         return localEvaluator.evaluate(expression);
     }
 
@@ -174,7 +170,7 @@ public class Evaluator {
         return expressionType;
     }
 
-    public final Option<Class> classFrom(String expression) {
+    public final Option<Class<?>> classFrom(String expression) {
         try {
             return some(detectClass(expression));
         } catch (Throwable e) {
@@ -188,7 +184,7 @@ public class Evaluator {
     }
 
     public void addClasspathUrl(URL classpathUrl) {
-        classLoader.addURL(classpathUrl);
+        classLoader.registerURL(classpathUrl);
     }
 
     public File outputDirectory() {
@@ -251,7 +247,7 @@ public class Evaluator {
         return expressionClass.getDeclaredMethods()[0];
     }
 
-    private Class detectClass(String expression) throws Exception {
+    private Class<?> detectClass(String expression) throws Exception {
         final String className = randomIdentifier("Class");
         final File outputJavaFile = file(context.outputDirectory(), className + ".java");
 
@@ -260,7 +256,7 @@ public class Evaluator {
 
         compile(outputJavaFile);
 
-        Class expressionClass = classLoader.loadClass(className);
+        Class<?> expressionClass = classLoader.loadClass(className);
 
         return expressionClass.getDeclaredMethods()[0].getReturnType();
     }
@@ -306,7 +302,7 @@ public class Evaluator {
         return sequence(expressionInstance.getClass().getDeclaredFields())
                 .reduceLeft(new Reducer<Field, Sequence<Result>>() {
                     public Sequence<Result> call(Sequence<Result> results, Field field) throws Exception {
-                        Option<Result> result = result(field.getName()).filter(where(value(), not(equalTo(field.get(expressionInstance)))));
+                        Option<Result> result = result(field.getName()).filter(where(Result::value, not(equalTo(field.get(expressionInstance)))));
 
                         if (result.isEmpty())
                             return results;

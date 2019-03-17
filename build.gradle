@@ -1,0 +1,204 @@
+plugins {
+    id "com.github.johnrengelman.shadow" version "1.2.4"
+    id "com.jfrog.bintray" version "1.7"
+    id "co.riiid.gradle" version "0.4.2"
+}
+
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+
+def projectVersion = System.getenv('PROJECT_VERSION') != null ? System.getenv('PROJECT_VERSION') : 'dev'
+def projectCompilerArgs = ["-Xlint:all", "-Xlint:-processing", "-Xlint:-serial", "-Werror"]
+
+
+compileJava {
+    options.compilerArgs = projectCompilerArgs
+}
+
+compileTestJava {
+    options.compilerArgs = projectCompilerArgs
+}
+
+repositories {
+    mavenCentral()
+    maven { url "https://plugins.gradle.org/m2" }
+    maven { url "http://repo.bodar.com" }
+}
+
+
+task javadocJar(type: Jar, dependsOn: shadowJar) {
+    baseName "javarepl"
+    version projectVersion
+    from javadoc
+}
+
+task sourceJar(type: Jar, dependsOn: shadowJar) {
+    baseName "javarepl"
+    version projectVersion
+    from sourceSets.main.allSource
+}
+
+def pomConfig = {
+    url 'http://www.javarepl.com'
+    name 'Java REPL'
+    licenses {
+        license {
+            name "The Apache Software License, Version 2.0"
+            url "http://www.apache.org/licenses/LICENSE-2.0.txt"
+            distribution "repo"
+        }
+    }
+
+    developers {
+        developer {
+            id "albertlatacz"
+            name "Albert Latacz"
+            email "albert.latacz@gmail.com"
+        }
+    }
+
+    scm {
+        url 'git@github.com:albertlatacz/java-repl.git'
+        connection 'scm:git@github.com:albertlatacz/java-repl.git'
+    }
+
+}
+
+publishing {
+    repositories {
+        jcenter()
+    }
+    publications {
+        shadow(MavenPublication) {
+            groupId 'com.javarepl'
+            artifactId 'javarepl'
+            version projectVersion
+            from components.shadow
+
+            artifact sourceJar {
+                classifier "sources"
+            }
+
+            artifact javadocJar {
+                classifier "javadoc"
+            }
+
+            pom.withXml {
+                def root = asNode()
+                root.appendNode('description', 'Java REPL is a simple Read-Eval-Print-Loop for Java language.')
+                root.children().last() + pomConfig
+            }
+
+        }
+    }
+}
+
+
+github {
+    owner = 'albertlatacz'
+    repo = 'java-repl'
+    token = System.getenv('GITHUB_TOKEN')  == null ? "UNSPECIFIED" : System.getenv('GITHUB_TOKEN')
+    tagName = projectVersion
+    targetCommitish = 'master'
+    assets = [
+            "build/libs/javarepl-${projectVersion}.jar",
+            "build/libs/javarepl-${projectVersion}-sources.jar",
+            "build/libs/javarepl-${projectVersion}-javadoc.jar"
+    ]
+}
+
+
+bintray {
+    user = System.getenv("BINTRAY_USERNAME")
+    key = System.getenv("BINTRAY_API_KEY")
+    publications = ['shadow']
+    publish = true
+
+    pkg {
+        repo = 'maven'
+        name = 'java-repl'
+        desc = 'Java REPL is a simple Read-Eval-Print-Loop for Java language.'
+        websiteUrl = 'http://www.javarepl.com'
+        issueTrackerUrl = 'https://github.com/albertlatacz/java-repl/issues'
+        vcsUrl = 'https://github.com/albertlatacz/java-repl.git'
+        licenses = ['Apache-2.0']
+        labels = ['java', 'repl']
+        publicDownloadNumbers = true
+        githubRepo = 'albertlatacz/java-repl'
+        githubReleaseNotesFile = 'README.md'
+
+        version {
+            name = projectVersion
+            desc = 'Auto-releasing Java REPL v.' + projectVersion +'!'
+            vcsTag = projectVersion
+
+            //Optional configuration for Maven Central sync of the version
+            mavenCentralSync {
+                sync = true//[Default: true] Determines whether to sync the version to Maven Central.
+                user = System.getenv("MAVEN_CENTRAL_USER_TOKEN") //OSS user token: mandatory
+                password = System.getenv("MAVEN_CENTRAL_USER_TOKEN_PASSWORD") //OSS user password: mandatory
+                close = '1' //Optional property. By default the staging repository is closed and artifacts are released to Maven Central. You can optionally turn this behaviour off (by puting 0 as value) and release the version manually.
+            }
+        }
+    }
+}
+
+
+
+
+shadowJar {
+    baseName = "javarepl"
+    classifier = null
+    version = projectVersion
+
+    relocate 'com.googlecode.totallylazy', 'javarepl.internal.totallylazy'
+    relocate 'com.googlecode.lazyparsec', 'javarepl.internal.lazyparsec'
+    relocate 'com.googlecode.utterlyidle', 'javarepl.internal.utterlyidle'
+    relocate 'com.googlecode.yadic', 'javarepl.internal.yadic'
+    relocate 'jline', 'javarepl.internal.jline'
+    relocate 'org.mozilla', 'javarepl.internal.mozilla'
+    relocate 'com.yahoo', 'javarepl.internal.yahoo'
+    relocate 'jargs', 'javarepl.internal.jargs'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+
+        resources {
+            srcDirs = ['src']
+        }
+
+    }
+
+    test {
+        java {
+            srcDirs = ['test']
+        }
+    }
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'javarepl.Main'
+        attributes 'Specification-Title': 'java-repl'
+        attributes 'Specification-Version': projectVersion
+        attributes 'Specification-Vendor': 'Albert Latacz'
+        attributes 'Implementation-Title': 'java-repl'
+        attributes 'Implementation-Version': projectVersion
+        attributes 'Implementation-Vendor': 'Albert Latacz'
+    }
+}
+
+dependencies {
+    compile "com.googlecode.totallylazy:totallylazy:2.249"
+    compile "com.googlecode.utterlyidle:utterlyidle:2.108"
+    compile "com.googlecode.yadic:yadic:2.48"
+    compile "jline:jline:2.14.2"
+
+    testCompile "org.hamcrest:hamcrest-core:1.3"
+    testCompile "org.hamcrest:hamcrest-library:1.3"
+    testCompile "junit:junit-dep:4.8.2"
+}
